@@ -1,0 +1,9 @@
+﻿  MovEst_hc.cpp
+MovEst_hc.cpp(33,89): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+MovEst_hc.cpp(40,87): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+MovEst_hc.cpp(485,1): warning C4996: 'clCreateCommandQueue': was declared deprecated
+  C:\Intel\OpenCL\sdk\include\CL\cl.h(1428): note: see declaration of 'clCreateCommandQueue'
+  Generating code
+  All 255 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  MovEstCL.vcxproj -> C:\Users\Savva\Source\Repos\MovementEstimationCL\x64\Release\MovEstCL.exe
