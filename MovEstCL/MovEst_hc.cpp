@@ -1,5 +1,6 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 #include <CL\cl.h>
+#include <CL\cl_ext.h>
 #include <stdio.h>
 #include <fstream>
 #include <setjmp.h>
@@ -14,267 +15,24 @@ typedef unsigned char u8;
 typedef short i16;
 typedef unsigned short u16;
 
-#define getjsample(value)  ((int) (value))
-#define centerjsample	128
-
-#define dctsize		    8
-#define dctsize2	    64
-
-static const double aanscalefactor[dctsize] =
+static const double aanscalefactor[8] =
 {
   1.0, 1.3870398453221475, 1.3065629648763766, 1.1758756024193588,
   1.0, 0.7856949583871022, 0.5411961001461971, 0.2758993792829431,
 };
 
-void jpeg_init_fdct_table(const u16 *quantptr, float quant_table[dctsize2])
+void jpeg_init_fdct_table(const u16 *quantptr, float quant_table[64])
 {
-  for (int row = 0, i = 0; row < dctsize; row++)
-    for (int col = 0; col < dctsize; i++, col++)
+  for (int row = 0, i = 0; row < 8; row++)
+    for (int col = 0; col < 8; i++, col++)
       quant_table[i] = 0.125 / (aanscalefactor[row] * aanscalefactor[col] * quantptr[i]); // 1/64
 }
 
-void jpeg_init_idct_table(const u16 *quantptr, float quant_table[dctsize2])
+void jpeg_init_idct_table(const u16 *quantptr, float quant_table[64])
 {
-  for (int row = 0, i = 0; row < dctsize; row++)
-    for (int col = 0; col < dctsize; i++, col++)
+  for (int row = 0, i = 0; row < 8; row++)
+    for (int col = 0; col < 8; i++, col++)
       quant_table[i] = quantptr[i] * aanscalefactor[row] * aanscalefactor[col] * 0.125;
-}
-
-u8 range_limit(int x)
-{
-  return x < 0 ? 0 : x > 0xFF ? 0xFF : x;
-}
-
-void jpeg_idct_float(const float *inptr, u8 *output_buf, int output_stride)
-{
-  float tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
-  float tmp10, tmp11, tmp12, tmp13;
-  float z5, z10, z11, z12, z13;
-  float * wsptr;
-  int ctr;
-  float workspace[dctsize2];
-
-  wsptr = workspace;
-  for (ctr = dctsize; ctr > 0; ctr--) {
-    if (inptr[dctsize * 1] == 0 && inptr[dctsize * 2] == 0 &&
-      inptr[dctsize * 3] == 0 && inptr[dctsize * 4] == 0 &&
-      inptr[dctsize * 5] == 0 && inptr[dctsize * 6] == 0 &&
-      inptr[dctsize * 7] == 0)
-    {
-      float dcval = inptr[dctsize * 0];
-
-      wsptr[dctsize * 0] = dcval;
-      wsptr[dctsize * 1] = dcval;
-      wsptr[dctsize * 2] = dcval;
-      wsptr[dctsize * 3] = dcval;
-      wsptr[dctsize * 4] = dcval;
-      wsptr[dctsize * 5] = dcval;
-      wsptr[dctsize * 6] = dcval;
-      wsptr[dctsize * 7] = dcval;
-
-      inptr++;
-      wsptr++;
-      continue;
-    }
-
-    tmp0 = inptr[dctsize * 0];
-    tmp1 = inptr[dctsize * 2];
-    tmp2 = inptr[dctsize * 4];
-    tmp3 = inptr[dctsize * 6];
-
-    tmp10 = tmp0 + tmp2;
-    tmp11 = tmp0 - tmp2;
-
-    tmp13 = tmp1 + tmp3;
-    tmp12 = (tmp1 - tmp3) * 1.414213562f - tmp13;
-
-    tmp0 = tmp10 + tmp13;
-    tmp3 = tmp10 - tmp13;
-    tmp1 = tmp11 + tmp12;
-    tmp2 = tmp11 - tmp12;
-
-    tmp4 = inptr[dctsize * 1];
-    tmp5 = inptr[dctsize * 3];
-    tmp6 = inptr[dctsize * 5];
-    tmp7 = inptr[dctsize * 7];
-
-    z13 = tmp6 + tmp5;
-    z10 = tmp6 - tmp5;
-    z11 = tmp4 + tmp7;
-    z12 = tmp4 - tmp7;
-
-    tmp7 = z11 + z13;
-    tmp11 = (z11 - z13) * 1.414213562f;
-
-    z5 = (z10 + z12) * 1.847759065f;
-    tmp10 = z5 - z12 * 1.082392200f;
-    tmp12 = z5 - z10 * 2.613125930f;
-
-    tmp6 = tmp12 - tmp7;
-    tmp5 = tmp11 - tmp6;
-    tmp4 = tmp10 - tmp5;
-
-    wsptr[dctsize * 0] = tmp0 + tmp7;
-    wsptr[dctsize * 7] = tmp0 - tmp7;
-    wsptr[dctsize * 1] = tmp1 + tmp6;
-    wsptr[dctsize * 6] = tmp1 - tmp6;
-    wsptr[dctsize * 2] = tmp2 + tmp5;
-    wsptr[dctsize * 5] = tmp2 - tmp5;
-    wsptr[dctsize * 3] = tmp3 + tmp4;
-    wsptr[dctsize * 4] = tmp3 - tmp4;
-
-    inptr++;
-    wsptr++;
-  }
-
-  /* pass 2: process rows. */
-
-  wsptr = workspace;
-  for (ctr = 0; ctr < dctsize; ctr++) {
-    /* prepare range-limit and float->int conversion */
-    z5 = wsptr[0] + (centerjsample + 0.5f);
-    tmp10 = z5 + wsptr[4];
-    tmp11 = z5 - wsptr[4];
-
-    tmp13 = wsptr[2] + wsptr[6];
-    tmp12 = (wsptr[2] - wsptr[6]) * 1.414213562f - tmp13;
-
-    tmp0 = tmp10 + tmp13;
-    tmp3 = tmp10 - tmp13;
-    tmp1 = tmp11 + tmp12;
-    tmp2 = tmp11 - tmp12;
-
-    z13 = wsptr[5] + wsptr[3];
-    z10 = wsptr[5] - wsptr[3];
-    z11 = wsptr[1] + wsptr[7];
-    z12 = wsptr[1] - wsptr[7];
-
-    tmp7 = z11 + z13;
-    tmp11 = (z11 - z13) * 1.414213562f;
-
-    z5 = (z10 + z12) * 1.847759065f;
-    tmp10 = z5 - z12 * 1.082392200f;
-    tmp12 = z5 - z10 * 2.613125930f;
-
-    tmp6 = tmp12 - tmp7;
-    tmp5 = tmp11 - tmp6;
-    tmp4 = tmp10 - tmp5;
-
-    /* final output stage: float->int conversion and range-limit */
-    output_buf[0] = range_limit((int)(tmp0 + tmp7));
-    output_buf[7] = range_limit((int)(tmp0 - tmp7));
-    output_buf[1] = range_limit((int)(tmp1 + tmp6));
-    output_buf[6] = range_limit((int)(tmp1 - tmp6));
-    output_buf[2] = range_limit((int)(tmp2 + tmp5));
-    output_buf[5] = range_limit((int)(tmp2 - tmp5));
-    output_buf[3] = range_limit((int)(tmp3 + tmp4));
-    output_buf[4] = range_limit((int)(tmp3 - tmp4));
-
-    wsptr += dctsize;
-    output_buf += output_stride;
-  }
-}
-
-
-void jpeg_fdct_float(float *outptr, const u8 *input_buf, int input_stride)
-{
-  float tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
-  float tmp10, tmp11, tmp12, tmp13;
-  float z1, z2, z3, z4, z5, z11, z13;
-  float *dataptr;
-  int ctr;
-
-  /* pass 1: process rows. */
-
-  dataptr = outptr;
-  for (ctr = 0; ctr < dctsize; ctr++) {
-    tmp0 = (float)(getjsample(input_buf[0]) + getjsample(input_buf[7]));
-    tmp7 = (float)(getjsample(input_buf[0]) - getjsample(input_buf[7]));
-    tmp1 = (float)(getjsample(input_buf[1]) + getjsample(input_buf[6]));
-    tmp6 = (float)(getjsample(input_buf[1]) - getjsample(input_buf[6]));
-    tmp2 = (float)(getjsample(input_buf[2]) + getjsample(input_buf[5]));
-    tmp5 = (float)(getjsample(input_buf[2]) - getjsample(input_buf[5]));
-    tmp3 = (float)(getjsample(input_buf[3]) + getjsample(input_buf[4]));
-    tmp4 = (float)(getjsample(input_buf[3]) - getjsample(input_buf[4]));
-
-    tmp10 = tmp0 + tmp3;
-    tmp13 = tmp0 - tmp3;
-    tmp11 = tmp1 + tmp2;
-    tmp12 = tmp1 - tmp2;
-
-    /* apply unsigned->signed conversion. */
-    dataptr[0] = tmp10 + tmp11 - 8 * centerjsample;
-    dataptr[4] = tmp10 - tmp11;
-
-    z1 = (tmp12 + tmp13) * 0.707106781f;
-    dataptr[2] = tmp13 + z1;
-    dataptr[6] = tmp13 - z1;
-
-    tmp10 = tmp4 + tmp5;
-    tmp11 = tmp5 + tmp6;
-    tmp12 = tmp6 + tmp7;
-
-    z5 = (tmp10 - tmp12) * 0.382683433f;
-    z2 = 0.541196100f * tmp10 + z5;
-    z4 = 1.306562965f * tmp12 + z5;
-    z3 = tmp11 * 0.707106781f;
-
-    z11 = tmp7 + z3;
-    z13 = tmp7 - z3;
-
-    dataptr[5] = z13 + z2;
-    dataptr[3] = z13 - z2;
-    dataptr[1] = z11 + z4;
-    dataptr[7] = z11 - z4;
-
-    dataptr += dctsize;
-    input_buf += input_stride;
-  }
-
-  /* pass 2: process columns. */
-
-  dataptr = outptr;
-  for (ctr = dctsize - 1; ctr >= 0; ctr--) {
-    tmp0 = dataptr[dctsize * 0] + dataptr[dctsize * 7];
-    tmp7 = dataptr[dctsize * 0] - dataptr[dctsize * 7];
-    tmp1 = dataptr[dctsize * 1] + dataptr[dctsize * 6];
-    tmp6 = dataptr[dctsize * 1] - dataptr[dctsize * 6];
-    tmp2 = dataptr[dctsize * 2] + dataptr[dctsize * 5];
-    tmp5 = dataptr[dctsize * 2] - dataptr[dctsize * 5];
-    tmp3 = dataptr[dctsize * 3] + dataptr[dctsize * 4];
-    tmp4 = dataptr[dctsize * 3] - dataptr[dctsize * 4];
-
-    tmp10 = tmp0 + tmp3;
-    tmp13 = tmp0 - tmp3;
-    tmp11 = tmp1 + tmp2;
-    tmp12 = tmp1 - tmp2;
-
-    dataptr[dctsize * 0] = tmp10 + tmp11;
-    dataptr[dctsize * 4] = tmp10 - tmp11;
-
-    z1 = (tmp12 + tmp13) * 0.707106781f;
-    dataptr[dctsize * 2] = tmp13 + z1;
-    dataptr[dctsize * 6] = tmp13 - z1;
-
-    tmp10 = tmp4 + tmp5;
-    tmp11 = tmp5 + tmp6;
-    tmp12 = tmp6 + tmp7;
-
-    z5 = (tmp10 - tmp12) * 0.382683433f;
-    z2 = 0.541196100f * tmp10 + z5;
-    z4 = 1.306562965f * tmp12 + z5;
-    z3 = tmp11 * 0.707106781f;
-
-    z11 = tmp7 + z3;
-    z13 = tmp7 - z3;
-
-    dataptr[dctsize * 5] = z13 + z2;
-    dataptr[dctsize * 3] = z13 - z2;
-    dataptr[dctsize * 1] = z11 + z4;
-    dataptr[dctsize * 7] = z11 - z4;
-
-    dataptr++;
-  }
 }
 
 struct my_error_mgr {
@@ -310,7 +68,7 @@ void PGMwriting(JSAMPARRAY pich, int w, int h, char *filename, int num)
 }
 
 
-int read_JPEG_file(char * filename, u8 *pich, int *w, int *wreal, int *h, int*hreal, float fquant[dctsize2], float iquant[dctsize2])
+int read_JPEG_file(char * filename, u8 *pich, size_t *w, size_t *wreal, size_t *h, size_t *hreal, float fquant[64], float iquant[64])
 {
   struct jpeg_decompress_struct cinfo;
   struct my_error_mgr jerr;
@@ -345,13 +103,9 @@ int read_JPEG_file(char * filename, u8 *pich, int *w, int *wreal, int *h, int*hr
     ((j_common_ptr)&cinfo, JPOOL_IMAGE, row_stride, 1);
 
   if (pich != NULL) {
-    u16 quant[dctsize2];
-    for (int i = 0; i < dctsize2; i++) {
-      quant[i] = 1;
-    }
-    ///uint16 -> u16
+    u16 quant[64];
     JQUANT_TBL** quants = cinfo.quant_tbl_ptrs;
-    for (int i = 0; i < dctsize2; i++) {
+    for (int i = 0; i < 64; i++) {
       quant[i] = quants[0]->quantval[i];
     }
     jpeg_init_fdct_table(quant, fquant);
@@ -392,7 +146,6 @@ int read_JPEG_file(char * filename, u8 *pich, int *w, int *wreal, int *h, int*hr
 #define INTELWEWANTDEBUG false //chose CPU
 #define INTELWEWANTSOMEANALYSIS true //just intel fun
 
-
 void main() {
   // reading cl file
   FILE * ptrFile = fopen("MovEst_cl.cl", "rb");
@@ -408,15 +161,30 @@ void main() {
   size_t result = fread(buff, 1, lSize, ptrFile);
   fclose(ptrFile);
 
+  ////piches
+  char *filename0 = "exp/smallmov0.jpg";
+  char *filename1 = "exp/smallmov1.jpg";
+  u8 *pSrcBuf = NULL;
+  u8 *pRefBuf = NULL;
+  float fquant[64], iquant[64];
+  size_t w, h, wreal, hreal;
+  read_JPEG_file(filename0, pSrcBuf, &w, &wreal, &h, &hreal, fquant, iquant); //to-do - add color component or write new function for that
+  pSrcBuf = new u8[w*h];
+  read_JPEG_file(filename1, pRefBuf, &w, &wreal, &h, &hreal, fquant, iquant);
+  pRefBuf = new u8[w*h];
+  read_JPEG_file(filename0, pSrcBuf, &w, &wreal, &h, &hreal, fquant, iquant);
+  read_JPEG_file(filename1, pRefBuf, &w, &wreal, &h, &hreal, fquant, iquant);
+  //nu heb ik een pich, w, h, fquant, iquant
+
   //get platform id
   cl_uint refCount;
-  cl_int err, err1;
+  cl_int err;
 
   //get device's ids
   cl_uint platformIdCount = 0;//
   clGetPlatformIDs(NULL, NULL, &platformIdCount);
   cl_platform_id* platforms = new cl_platform_id[platformIdCount];
-  cl_platform_id  useplatfo = 0;
+  cl_platform_id  platform = 0;
   clGetPlatformIDs(platformIdCount, platforms, &platformIdCount);
   printf("===%d OpenCL platform(s) found: ===\n", platformIdCount);
   for (unsigned int i = 0; i < platformIdCount; ++i)
@@ -426,9 +194,9 @@ void main() {
     printf("PLATFORM_VENDOR = %s\n", buffer);
     if ((INTELWEWANTSOMEANALYSIS || INTELWEWANTDEBUG) && (buffer[0] == 'I'))
     {
-      useplatfo = platforms[i];
+      platform = platforms[i];
     }
-    else useplatfo = platforms[0];
+    else platform = platforms[0];
   }
 
   cl_device_id devices[3];
@@ -436,16 +204,16 @@ void main() {
   cl_uint devicesn = 0;
   int errordevice = 1;
   if (INTELWEWANTDEBUG) {
-    errordevice = clGetDeviceIDs(useplatfo, CL_DEVICE_TYPE_CPU, 3, &device, &devicesn);
+    errordevice = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 3, &device, &devicesn);
     printf("DEBUG MODE ON\n");
   }
   else if (errordevice != CL_SUCCESS) {
-    clGetDeviceIDs(useplatfo, CL_DEVICE_TYPE_ALL, 3, devices, &devicesn);
+    clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 3, devices, &devicesn);
     device = devices[0];
     printf("DESTINY MODE ON\n");
   }
   printf("===========<ACTUAL DEVICE>=========\n");
-  size_t bufferst[10240];
+  static size_t bufferst[10240];
   cl_uint buf_uint;
   cl_ulong buf_ulong;
   static char buffer[1000];
@@ -483,249 +251,91 @@ void main() {
 
   //creating command queue
   cl_command_queue command = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
-  const char *strings = buff;
+  // Get the func pointers to the accelerator routines 
+  static clCreateAcceleratorINTEL_fn pfn_clCreateAcceleratorINTEL = (clCreateAcceleratorINTEL_fn)
+    clGetExtensionFunctionAddressForPlatform(platform, "clCreateAcceleratorINTEL");
+  static clReleaseAcceleratorINTEL_fn pfn_clReleaseAcceleratorINTEL = (clReleaseAcceleratorINTEL_fn)
+    clGetExtensionFunctionAddressForPlatform(platform, "clReleaseAcceleratorINTEL");
 
-  cl_program program = clCreateProgramWithSource(context, 1, &strings, &result, &err1);
-  printf("ProgramCreationError = %i\n", err1);
+  // Create the program and the built-in kernel for the motion estimation
+  cl_program program = clCreateProgramWithBuiltInKernels(context, 1, &device, "block_motion_estimate_intel", NULL);
+  cl_kernel kernel = clCreateKernel(program, "block_motion_estimate_intel", NULL);
 
-  int err6;
+  // Create the accelerator for the motion estimation 
+  cl_motion_estimation_desc_intel desc = { // VME API configuration knobs
+                                           // Num of motion vectors per source pixel block, here a single vector per block
+    CL_ME_MB_TYPE_16x16_INTEL,
+    CL_ME_SUBPIXEL_MODE_INTEGER_INTEL, // Motion vector precision
+                                       // Adjust mode for the residuals, we don't compute them in this tutorial anyway: 
+                                       CL_ME_SAD_ADJUST_MODE_NONE_INTEL,
+                                       CL_ME_SEARCH_PATH_RADIUS_16_12_INTEL // Search window radius
+  };
+  cl_accelerator_intel accelerator =
+    pfn_clCreateAcceleratorINTEL(context,
+      CL_ACCELERATOR_TYPE_MOTION_ESTIMATION_INTEL,
+      sizeof(cl_motion_estimation_desc_intel), &desc, 0);
 
-  // if (INTELWEWANTDEBUG){
-  //before using this, change path into your absolute path to .cl file
-  clBuildProgram(program, 0, NULL, "", NULL, NULL);
-  //}
-  //else
-  //{
-  //  clBuildProgram(program, 0, NULL, "", NULL, NULL);  
-  //}
+  
+  // Input images
+  cl_image_format format = { CL_R, CL_UNORM_INT8 }; // luminance plane
+  cl_mem srcImage = clCreateImage2D(context, CL_MEM_ALLOC_HOST_PTR | CL_MEM_COPY_HOST_PTR , &format,
+    w, h, 0, pSrcBuf, &err);
+  printf("SrcImage Error = %i\n", err);
+  cl_mem refImage = clCreateImage2D(context, CL_MEM_ALLOC_HOST_PTR | CL_MEM_COPY_HOST_PTR , &format,
+    w, h, 0, pRefBuf, &err);
+  printf("RefImage Error = %i\n", err);
 
-  //clBuildProgram(program, 0, NULL, "", NULL, NULL);
-  clBuildProgram(program, 1, &device, NULL, NULL, NULL);
-
-  static char buffer2[20480];
-  clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, sizeof(buffer2), buffer2, &len_prog);
-  printf("ProgramBuildInfo = %s \n", buffer2);
-
-  //////////////////////////////////////////////////////////////////////
-  //////FINDING KERNELS/////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////// 
-  cl_kernel kernel;
-  kernel = clCreateKernel(program, "mov_est", &err6);
-  //////////////////////////////////////////////////////////////////////
-  //////reading file////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////
-  char *filename0 = "exp/smallmov0.jpg";
-  char *filename1 = "exp/smallmov1.jpg";
-  u8 *pich0 = NULL;
-  u8 *pich1 = NULL;
-  float fquant[dctsize2], iquant[dctsize2];
-  int w, h, wreal, hreal;
-  read_JPEG_file(filename0, pich0, &w, &wreal, &h, &hreal, fquant, iquant); //to-do - add color component or write new function for that
-  pich0 = new u8[w*h];
-  read_JPEG_file(filename1, pich1, &w, &wreal, &h, &hreal, fquant, iquant);
-  pich1 = new u8[w*h];
-  read_JPEG_file(filename0, pich0, &w, &wreal, &h, &hreal, fquant, iquant);
-  read_JPEG_file(filename1, pich1, &w, &wreal, &h, &hreal, fquant, iquant);
-  //nu heb ik een pich, w, h, fquant, iquant
-
-  unsigned short *resu = new  unsigned short[w*h];
-
-  //cl_mem in_pich, ou_resu, in_fquant, in_iquant;
- 
-  //in_pich = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(u8) * w * h, NULL, NULL);
-  //in_fquant = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * DCTSIZE2, NULL, NULL);
-  //in_iquant = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * DCTSIZE2, NULL, NULL);
-  //ou_resu = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(unsigned short) * w * h, NULL, NULL);
-  //if (!in_pich || !in_fquant || !in_iquant || !ou_resu) {
-  //  printf("Error of cl_memes!!!!!!\n");
-  //  exit(1);
-  //}
-
-  //cl_event event;
-  //// cl_ulong time_end, time_start;
-
-  //int err_writebuff = 0;
-  //int err_readbuff = 0;
-
-  //clSetKernelArg(kernel, 0, sizeof(cl_mem), &in_pich);
-  //clSetKernelArg(kernel, 1, sizeof(cl_mem), &ou_resu);
-  //clSetKernelArg(kernel, 2, sizeof(cl_mem), &in_fquant);
-  //clSetKernelArg(kernel, 3, sizeof(cl_mem), &in_iquant);
-  //clSetKernelArg(kernel, 4, sizeof(cl_int), &w);
-  //int offset = 0;
-  //size_t global[2];
-  //size_t local[2] = { DCTSIZE2, 1 };
-
-  //err_writebuff = clEnqueueWriteBuffer(command, in_pich, CL_FALSE, 0, sizeof(u8) * w * h, pich, 0, NULL, NULL);
-  //printf("Error WriteBuff inpich = %i\n", err_writebuff);
-  //err_writebuff = clEnqueueWriteBuffer(command, in_fquant, CL_FALSE, 0, sizeof(float) * dctsize2, fquant, 0, NULL, NULL);
-  //printf("Error WriteBuff infquant = %i\n", err_writebuff);
-  //err_writebuff = clEnqueueWriteBuffer(command, in_iquant, CL_FALSE, 0, sizeof(float) * dctsize2, iquant, 0, NULL, NULL);
-  //printf("Error WriteBuff iniquant = %i\n", err_writebuff);
-  //err_writebuff = clEnqueueWriteBuffer(command, ou_resu, CL_TRUE, 0, sizeof(unsigned short) * w * h, resu, 0, NULL, NULL);
-  //printf("Error WriteBuff ouresu = %i\n", err_writebuff);
-
-
-  ////devnull
-  //clSetKernelArg(kerneldevnull, 0, sizeof(cl_mem), &ou_resu);
-  //global[0] = w*h / 2;
-  //global[1] = 1;
-  //err = clEnqueueNDRangeKernel(command, kerneldevnull, 1, 0, global, NULL, NULL, NULL, &event);
-  //printf("Error NDRangeKernel division = %i\n", err);
-  //clFinish(command);
-  ///////////////////////////////////////////////////////////////////////////
-  ///////MOST WANTED/////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////
-  //////offset 0 kernel 1
-  //offset = 0;
-  //clSetKernelArg(kernel, 5, sizeof(cl_int), &offset);
-  //global[0] = w / 16 * DCTSIZE2;
-  //global[1] = h / 16;
-  //err = clEnqueueNDRangeKernel(command, kernel, 2, 0, global, local, NULL, NULL, &event);
-  //printf("Error NDRangeKernel with off %i = %i\n", offset, err);
-  //clFinish(command);
-  //////offset 8 kernel 2
-  //offset = 8;
-  //clSetKernelArg(kernel, 5, sizeof(cl_int), &offset);
-  //global[0] = (w - 8) / 16 * DCTSIZE2;
-  //err = clEnqueueNDRangeKernel(command, kernel, 2, 0, global, local, NULL, NULL, &event);
-  //printf("Error NDRangeKernel  with off %i = %i\n", offset, err);
-  //clFinish(command);
-  //////offset 8*w kernel 3
-  //offset = 8 * w;
-  //clSetKernelArg(kernel, 5, sizeof(cl_int), &offset);
-  //global[0] = w / 16 * DCTSIZE2;
-  //global[1] = (h - 8) / 16;
-  //err = clEnqueueNDRangeKernel(command, kernel, 2, 0, global, local, NULL, NULL, &event);
-  //printf("Error NDRangeKernel  with off %i = %i\n", offset, err);
-  //clFinish(command);
-  //////offset 8*w + 8 kernel 4
-  //offset = 8 * w + 8;
-  //clSetKernelArg(kernel, 5, sizeof(cl_int), &offset);
-  //global[0] = (w - 8) / 16 * DCTSIZE2;
-  //global[1] = (h - 8) / 16;
-  //err = clEnqueueNDRangeKernel(command, kernel, 2, 0, global, local, NULL, NULL, &event);
-  //printf("Error NDRangeKernel  with off %i = %i\n", offset, err);
-  //clFinish(command);
-  ///////////////////////////////////////////////////////////////////////////
-  ///////Kernel's EDGE///////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////
-
-  ////vertical kernels
-  //offset = w - 8;
-  //clSetKernelArg(kernelvert, 0, sizeof(cl_mem), &in_pich);
-  //clSetKernelArg(kernelvert, 1, sizeof(cl_mem), &ou_resu);
-  //clSetKernelArg(kernelvert, 2, sizeof(cl_mem), &in_fquant);
-  //clSetKernelArg(kernelvert, 3, sizeof(cl_mem), &in_iquant);
-  //clSetKernelArg(kernelvert, 4, sizeof(cl_int), &w);
-  //clSetKernelArg(kernelvert, 5, sizeof(cl_int), &h);
-  //clSetKernelArg(kernelvert, 6, sizeof(cl_int), &offset);
-  //global[0] = 1;
-  //global[1] = (h / 16) * 8;
-  //local[0] = 1;
-  //local[1] = 8;
-  //err = clEnqueueNDRangeKernel(command, kernelvert, 2, 0, global, local, NULL, NULL, &event);
-  //clFinish(command);
-  //printf("Error NDRangeKernel vert with off %i = %i\n", offset, err);
-  //offset = w * 8 + w - 8;
-  //clSetKernelArg(kernelvert, 6, sizeof(cl_int), &offset);
-  //global[0] = 1;
-  //global[1] = (h - 8) / 16 * 8;
-  //local[0] = 1;
-  //local[1] = 8;
-  //err = clEnqueueNDRangeKernel(command, kernelvert, 2, 0, global, local, NULL, NULL, &event);
-  //clFinish(command);
-  //printf("Error NDRangeKernel vert with off %i = %i\n", offset, err);
-  //////horizontal kernels
-  //offset = (h - 8)*w;
-  //clSetKernelArg(kernelhori, 0, sizeof(cl_mem), &in_pich);
-  //clSetKernelArg(kernelhori, 1, sizeof(cl_mem), &ou_resu);
-  //clSetKernelArg(kernelhori, 2, sizeof(cl_mem), &in_fquant);
-  //clSetKernelArg(kernelhori, 3, sizeof(cl_mem), &in_iquant);
-  //clSetKernelArg(kernelhori, 4, sizeof(cl_int), &w);
-  //clSetKernelArg(kernelhori, 5, sizeof(cl_int), &h);
-  //clSetKernelArg(kernelhori, 6, sizeof(cl_int), &offset);
-  //global[0] = (w / 16) * 8;
-  //global[1] = 1;
-  //local[0] = 8;
-  //local[1] = 1;
-  //err = clEnqueueNDRangeKernel(command, kernelhori, 2, 0, global, local, NULL, NULL, &event);
-  //clFinish(command);
-  //printf("Error NDRangeKernel hori with off %i = %i\n", offset, err);
-  //offset = (h - 8)*w + 8;
-  //clSetKernelArg(kernelhori, 6, sizeof(cl_int), &offset);
-  //global[0] = (w - 8) / 16 * 8;
-  //global[1] = 1;
-  //local[0] = 8;
-  //local[1] = 1;
-  //err = clEnqueueNDRangeKernel(command, kernelhori, 2, 0, global, local, NULL, NULL, &event);
-  //clFinish(command);
-  //printf("Error NDRangeKernel hori with off %i = %i\n", offset, err);
-  //////kernel op de hoek
-  //offset = (h - 8)*w + w - 8;
-  //clSetKernelArg(kernelnook, 0, sizeof(cl_mem), &in_pich);
-  //clSetKernelArg(kernelnook, 1, sizeof(cl_mem), &ou_resu);
-  //clSetKernelArg(kernelnook, 2, sizeof(cl_mem), &in_fquant);
-  //clSetKernelArg(kernelnook, 3, sizeof(cl_mem), &in_iquant);
-  //clSetKernelArg(kernelnook, 4, sizeof(cl_int), &w);
-  //clSetKernelArg(kernelnook, 5, sizeof(cl_int), &h);
-  //clSetKernelArg(kernelnook, 6, sizeof(cl_int), &offset);
-  ////если распарсить дктидкт
-  //global[0] = 8;
-  //global[1] = 1;
-  //local[0] = 8;
-  //local[1] = 1;
-  ////подумоть, а нужна ли так локальная группа
-  //err = clEnqueueNDRangeKernel(command, kernelnook, 2, 0, global, local, NULL, NULL, &event);
-  //printf("Error NDRangeKernel op de hoek met off %i = %i\n", offset, err);
-  //clFinish(command);
-  ///////////////////////////////////////////////////////////////////////////
-  ///////Pichoy Division/////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////
-  //clSetKernelArg(kerneldivi, 0, sizeof(cl_mem), &ou_resu);
-  //clSetKernelArg(kerneldivi, 1, sizeof(cl_int), &w);
-  //clSetKernelArg(kerneldivi, 2, sizeof(cl_int), &h);
-  //global[0] = w;
-  //global[1] = h;
-  //err = clEnqueueNDRangeKernel(command, kerneldivi, 2, 0, global, NULL, NULL, NULL, &event);
-  //printf("Error NDRangeKernel division = %i\n", err);
-  //clFinish(command);
-  ///////////////////////////////////////////////////////////////////////////
-  ///////READING BUFFER//////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////
-  //err = clEnqueueReadBuffer(command, ou_resu, CL_TRUE, 0, sizeof(unsigned short) * w * h, resu, 0, NULL, NULL);
-  //printf("Error ReadBuff ouresu = %i\n", err);
-  ////clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
-  ////clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
-  ////printf("TIME = %llu\n", (time_end - time_start));
+  // Compute number of output motion vectors 
+  const int mbSize = 16; // size of the (input) pixel motion block
+  size_t widthInMB = (w + mbSize - 1) / mbSize;
+  size_t heightInMB = (h + mbSize - 1) / mbSize;
+  printf("Qunatity of MB  = %zd X %zd \n", heightInMB, widthInMB);
+  // Output buffer for MB motion vectors
+  cl_mem outMVBuffer = clCreateBuffer(context, CL_MEM_READ_WRITE, widthInMB * heightInMB * sizeof(cl_short2), 0, NULL);
+  
+  short *pMVOut = new short[widthInMB*heightInMB*2];
+  // Setup params for the built-in kernel 
+  err = clSetKernelArg(kernel, 0, sizeof(cl_accelerator_intel), &accelerator);
+  printf("Anne INTEL Kern 0 = %i\n", err);
+  err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &srcImage);
+  printf("Anne INTEL Kern 1 = %i\n", err);
+  err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &refImage);
+  printf("Anne INTEL Kern 2 = %i\n", err);
+  err = clSetKernelArg(kernel, 3, sizeof(cl_mem), NULL); // disable predictor motion vectors
+  printf("Anne INTEL Kern 3 = %i\n", err);
+  err = clSetKernelArg(kernel, 4, sizeof(cl_mem), &outMVBuffer);
+  printf("Anne INTEL Kern 4 = %i\n", err);
+  err = clSetKernelArg(kernel, 5, sizeof(cl_mem), NULL); // disable extra motion block info output
+  printf("Anne INTEL Kern 5 = %i\n", err);
+                                                   // Run the kernel
+                                                   // Notice that it *requires* to let runtime determine the local size, and requires 2D ndrange
+  const size_t originROI[2] = { 0, 0 };
+  const size_t sizeROI[2] = { w, h };
+  err = clEnqueueNDRangeKernel(command, kernel, 2, originROI, sizeROI, NULL, 0, 0, 0);
+  printf("Kernel err = %i\n", err);
+  // Read resulting motion vectors
+  err = clEnqueueReadBuffer(command, outMVBuffer, CL_TRUE, 0, widthInMB * heightInMB * sizeof(cl_short2), pMVOut, 0, 0, 0);
+  printf("Read buff err = %i\n", err);
+  
 
   //JSAMPARRAY a = new JSAMPROW[h];
-  //for (int y = 0; y < h; y++)
-  //{
-  //  a[y] = new JSAMPLE[w];
-  //  for (int z = 0; z < w; z++)
-  //  {
-  //    a[y][z] = (JSAMPLE)resu[y*w + z];
-  //  }
-  //}
+  for (int y = 0; y < heightInMB; y++)
+  {
+    for (int z = 0; z < widthInMB; z+=2)
+    {
+      printf("_%i,%i_  ", pMVOut[y*widthInMB + z], pMVOut[y*widthInMB + z + 1]);
+    }
+  }
 
-  //PGMwriting(a, w, h, filename, 5);
-
-  //clReleaseMemObject(in_pich);
-  //clReleaseMemObject(in_fquant);
-  //clReleaseMemObject(in_iquant);
-  //clReleaseMemObject(ou_resu);
+  clReleaseMemObject(srcImage);
+  clReleaseMemObject(refImage);
+  clReleaseMemObject(outMVBuffer);
   //clReleaseProgram(program);
-  //clReleaseCommandQueue(command);
-  //clReleaseContext(context);
+  clReleaseCommandQueue(command);
+  clReleaseContext(context);
   //clReleaseEvent(event);
-  //clReleaseKernel(kernel);
-  //clReleaseKernel(kernelvert);
-  //clReleaseKernel(kernelhori);
-  //clReleaseKernel(kernelnook);
-  //clReleaseKernel(kerneldivi);
-  //clReleaseKernel(kerneldevnull);
-
+  clReleaseKernel(kernel);
+  //clReleaseAcceleratorINTEL(accelerator);
   //free(buff);
   /////вот чтобы этого не было, а так же ворнинга о переполнении стека, лучше все перевести в malloc, а не гребанные new
   //for (int y = 0; y < h; y++)
@@ -735,5 +345,5 @@ void main() {
   //delete[] a;
   //delete[] pich;
   //delete[] resu;
-  return;
+  return ;
 }

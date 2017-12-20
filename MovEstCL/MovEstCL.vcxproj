@@ -149,6 +149,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="MovEst_hc.cpp" />
+    <ClCompile Include="refsource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="MovEst_cl.cl" />

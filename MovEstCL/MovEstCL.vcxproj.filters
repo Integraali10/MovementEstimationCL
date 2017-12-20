@@ -14,6 +14,9 @@
     <ClCompile Include="MovEst_hc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="refsource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="MovEst_cl.cl">
