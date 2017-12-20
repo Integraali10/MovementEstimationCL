@@ -174,6 +174,8 @@ void main() {
   pRefBuf = new u8[w*h];
   read_JPEG_file(filename0, pSrcBuf, &w, &wreal, &h, &hreal, fquant, iquant);
   read_JPEG_file(filename1, pRefBuf, &w, &wreal, &h, &hreal, fquant, iquant);
+
+  u8 *pOutBuf = new u8[w*h];
   //nu heb ik een pich, w, h, fquant, iquant
 
   //get platform id
@@ -259,7 +261,28 @@ void main() {
 
   // Create the program and the built-in kernel for the motion estimation
   cl_program program = clCreateProgramWithBuiltInKernels(context, 1, &device, "block_motion_estimate_intel", NULL);
+  const char *strings = buff;
+
+  cl_program programsour = clCreateProgramWithSource(context, 1, &strings, &result, &err);
+  printf("ProgramCreationError = %i\n", err);
+
+  if (INTELWEWANTDEBUG) {
+    //before using this, change path into your absolute path to .cl file
+    clBuildProgram(programsour, 1, &device, "-g -s C:\\Users\\Savva\\Source\\Repos\\MovementEstimationCL\\MovEstCL\\MovEst_cl.cl", NULL, NULL);
+  }
+  else
+  {
+    clBuildProgram(programsour, 1, &device, "", NULL, NULL);
+  }
+
+  static char buffer2[200480];
+  clGetProgramBuildInfo(programsour, device, CL_PROGRAM_BUILD_LOG, sizeof(buffer2), buffer2, &len_prog);
+  printf("ProgramBuildInfo = %s \n", buffer2);
+
+
   cl_kernel kernel = clCreateKernel(program, "block_motion_estimate_intel", NULL);
+  cl_kernel kern_mr = clCreateKernel(programsour, "mov_reanimation", &err);
+  cl_kernel kern_me = clCreateKernel(programsour, "mov_estimation", &err);
 
   // Create the accelerator for the motion estimation 
   cl_motion_estimation_desc_intel desc = { // VME API configuration knobs
@@ -292,7 +315,9 @@ void main() {
   printf("Qunatity of MB  = %zd X %zd \n", heightInMB, widthInMB);
   // Output buffer for MB motion vectors
   cl_mem outMVBuffer = clCreateBuffer(context, CL_MEM_READ_WRITE, widthInMB * heightInMB * sizeof(cl_short2), 0, NULL);
-  
+  cl_mem outImage = clCreateImage2D(context, CL_MEM_WRITE_ONLY, &format, w, h, 0, 0, &err);
+  printf("OutImage Error = %i\n", err);
+
   short *pMVOut = new short[widthInMB*heightInMB*2];
   // Setup params for the built-in kernel 
   err = clSetKernelArg(kernel, 0, sizeof(cl_accelerator_intel), &accelerator);
@@ -312,31 +337,62 @@ void main() {
   const size_t originROI[2] = { 0, 0 };
   const size_t sizeROI[2] = { w, h };
   err = clEnqueueNDRangeKernel(command, kernel, 2, originROI, sizeROI, NULL, 0, 0, 0);
-  printf("Kernel err = %i\n", err);
+  printf("Kernel Intel err = %i\n", err);
   // Read resulting motion vectors
-  err = clEnqueueReadBuffer(command, outMVBuffer, CL_TRUE, 0, widthInMB * heightInMB * sizeof(cl_short2), pMVOut, 0, 0, 0);
-  printf("Read buff err = %i\n", err);
+  //err = clEnqueueReadBuffer(command, outMVBuffer, CL_TRUE, 0, widthInMB * heightInMB * sizeof(cl_short2), pMVOut, 0, 0, 0);
+  //printf("Read buff err = %i\n", err);
   
-
-  //JSAMPARRAY a = new JSAMPROW[h];
-  for (int y = 0; y < heightInMB; y++)
+  /*for (int y = 0; y < heightInMB; y++)
   {
     for (int z = 0; z < widthInMB; z+=2)
     {
       printf("_%i,%i_  ", pMVOut[y*widthInMB + z], pMVOut[y*widthInMB + z + 1]);
     }
+  }*/
+  err = clSetKernelArg(kern_mr, 0, sizeof(cl_mem), &srcImage);
+  printf("Anne Reanimation Kern 0 = %i\n", err);
+  err = clSetKernelArg(kern_mr, 1, sizeof(cl_mem), &refImage);
+  printf("Anne Reanimation Kern 1 = %i\n", err);
+  err = clSetKernelArg(kern_mr, 2, sizeof(cl_mem), &outMVBuffer);
+  printf("Anne Reanimation Kern 2 = %i\n", err);
+  err = clSetKernelArg(kern_mr, 3, sizeof(cl_mem), &outImage);
+  printf("Anne Reanimation Kern 3 = %i\n", err);
+  //const size_t sizeROI[2] = { w, h };
+
+  //cl_event event[2];
+
+  err = clEnqueueNDRangeKernel(command, kern_mr, 2, originROI, sizeROI, NULL, 0, NULL, NULL);
+  printf("Kernel Reanimation err = %i\n", err);
+  size_t origin[] = { 0,0,0 }; // Defines the offset in pixels in the image from where to write.
+  size_t region[] = { w, h, 1 }; // Size of object to be transferred
+  err = clEnqueueReadImage(command, outImage, CL_TRUE, origin, region, 0, 0, pOutBuf, 0, NULL, NULL);
+  printf("Read Reanimated Image err = %i\n", err);
+
+  JSAMPARRAY a = new JSAMPROW[h];
+  for (int y = 0; y < h; y++)
+  {
+    a[y] = new JSAMPLE[w];
+    for (int z = 0; z < w; z++)
+    {
+      a[y][z] = (JSAMPLE)pOutBuf[y*w + z];
+    }
   }
 
+  PGMwriting(a, w, h, filename0, 5);
+
+
+  //покурить освобождение акселератора
+  //clReleaseAcceleratorINTEL(accelerator);
   clReleaseMemObject(srcImage);
   clReleaseMemObject(refImage);
   clReleaseMemObject(outMVBuffer);
-  //clReleaseProgram(program);
+  clReleaseProgram(program);
   clReleaseCommandQueue(command);
   clReleaseContext(context);
   //clReleaseEvent(event);
   clReleaseKernel(kernel);
-  //clReleaseAcceleratorINTEL(accelerator);
-  //free(buff);
+ 
+  free(buff);
   /////вот чтобы этого не было, а так же ворнинга о переполнении стека, лучше все перевести в malloc, а не гребанные new
   //for (int y = 0; y < h; y++)
   //{
