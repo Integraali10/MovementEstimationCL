@@ -1,7 +1,7 @@
 ﻿  MovEst_hc.cpp
 MovEst_hc.cpp(28,89): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
 MovEst_hc.cpp(35,87): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-MovEst_hc.cpp(381,35): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+MovEst_hc.cpp(385,37): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
 MovEst_hc.cpp(255,1): warning C4996: 'clCreateCommandQueue': was declared deprecated
   C:\Intel\OpenCL\sdk\include\CL\cl.h(1428): note: see declaration of 'clCreateCommandQueue'
 MovEst_hc.cpp(304,1): warning C4996: 'clCreateImage2D': was declared deprecated

@@ -52,12 +52,12 @@ my_error_exit(j_common_ptr cinfo)
 }
 
 
-void PGMwriting(JSAMPARRAY pich, int w, int h, char *filename, int num)
+void PGMwriting(JSAMPARRAY pich, int w, int h, char *filename, char num)
 {
   FILE * infile;
   int n = (int)strlen(filename);
-  char *newname = new char[n + 2];
-  sprintf(newname, "%.*s%i.pgm", n - 4, filename, num);
+  char *newname = new char[n + 1];
+  sprintf(newname, "%.*s%c.pgm", n - 4, filename, num);
   infile = fopen(newname, "wb");
   fprintf(infile, "P5\n%i %i\n255\n", w, h);
   for (int i = 0; i < (int)(h); i++)
@@ -136,7 +136,7 @@ int read_JPEG_file(char * filename, u8 *pich, size_t *w, size_t *wreal, size_t *
     }
   }
 
-  PGMwriting(a, cinfo.output_width, cinfo.output_height, filename, 0);
+  PGMwriting(a, cinfo.output_width, cinfo.output_height, filename, '0');
   (void)jpeg_finish_decompress(&cinfo);
   jpeg_destroy_decompress(&cinfo);
 
@@ -341,14 +341,15 @@ void main() {
   // Read resulting motion vectors
   //err = clEnqueueReadBuffer(command, outMVBuffer, CL_TRUE, 0, widthInMB * heightInMB * sizeof(cl_short2), pMVOut, 0, 0, 0);
   //printf("Read buff err = %i\n", err);
-  
-  /*for (int y = 0; y < heightInMB; y++)
-  {
-    for (int z = 0; z < widthInMB; z+=2)
-    {
-      printf("_%i,%i_  ", pMVOut[y*widthInMB + z], pMVOut[y*widthInMB + z + 1]);
-    }
-  }*/
+  //
+  //for (int y = 0; y < heightInMB; y++)
+  //{
+  //  for (int z = 0; z < widthInMB; z+=2)
+  //  {
+  //    printf("_%i,%i_  ", pMVOut[y*widthInMB + z], pMVOut[y*widthInMB + z + 1]);
+  //  }
+  //}
+
   err = clSetKernelArg(kern_mr, 0, sizeof(cl_mem), &srcImage);
   printf("Anne Reanimation Kern 0 = %i\n", err);
   err = clSetKernelArg(kern_mr, 1, sizeof(cl_mem), &refImage);
@@ -357,11 +358,14 @@ void main() {
   printf("Anne Reanimation Kern 2 = %i\n", err);
   err = clSetKernelArg(kern_mr, 3, sizeof(cl_mem), &outImage);
   printf("Anne Reanimation Kern 3 = %i\n", err);
-  //const size_t sizeROI[2] = { w, h };
-
+  err = clSetKernelArg(kern_mr, 4, sizeof(cl_int), &widthInMB);
+  printf("Anne Reanimation Kern 4 = %i\n", err);
+  
+  const size_t sizeROI_mr[2] = { widthInMB * mbSize, heightInMB * mbSize };
+  const size_t localROI_mr[2] = { mbSize , mbSize };
   //cl_event event[2];
 
-  err = clEnqueueNDRangeKernel(command, kern_mr, 2, originROI, sizeROI, NULL, 0, NULL, NULL);
+  err = clEnqueueNDRangeKernel(command, kern_mr, 2, originROI, sizeROI_mr, localROI_mr, 0, NULL, NULL);
   printf("Kernel Reanimation err = %i\n", err);
   size_t origin[] = { 0,0,0 }; // Defines the offset in pixels in the image from where to write.
   size_t region[] = { w, h, 1 }; // Size of object to be transferred
@@ -378,7 +382,7 @@ void main() {
     }
   }
 
-  PGMwriting(a, w, h, filename0, 5);
+  PGMwriting(a, w, h, filename0, 'a');
 
 
   //покурить освобождение акселератора
