@@ -162,8 +162,8 @@ void main() {
   fclose(ptrFile);
 
   ////piches
-  char *filename0 = "exp/smallmov0.jpg";
-  char *filename1 = "exp/smallmov1.jpg";
+  char *filename0 = "exp/chat0.jpg";
+  char *filename1 = "exp/chat1.jpg";
   u8 *pSrcBuf = NULL;
   u8 *pRefBuf = NULL;
   float fquant[64], iquant[64];
@@ -254,9 +254,9 @@ void main() {
   //creating command queue
   cl_command_queue command = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
   // Get the func pointers to the accelerator routines 
-  static clCreateAcceleratorINTEL_fn pfn_clCreateAcceleratorINTEL = (clCreateAcceleratorINTEL_fn)
+  static clCreateAcceleratorINTEL_fn clCreateAcceleratorINTEL = (clCreateAcceleratorINTEL_fn)
     clGetExtensionFunctionAddressForPlatform(platform, "clCreateAcceleratorINTEL");
-  static clReleaseAcceleratorINTEL_fn pfn_clReleaseAcceleratorINTEL = (clReleaseAcceleratorINTEL_fn)
+  static clReleaseAcceleratorINTEL_fn clReleaseAcceleratorINTEL = (clReleaseAcceleratorINTEL_fn)
     clGetExtensionFunctionAddressForPlatform(platform, "clReleaseAcceleratorINTEL");
 
   // Create the program and the built-in kernel for the motion estimation
@@ -275,7 +275,7 @@ void main() {
     clBuildProgram(programsour, 1, &device, "", NULL, NULL);
   }
 
-  static char buffer2[200480];
+  static char buffer2[20480];
   clGetProgramBuildInfo(programsour, device, CL_PROGRAM_BUILD_LOG, sizeof(buffer2), buffer2, &len_prog);
   printf("ProgramBuildInfo = %s \n", buffer2);
 
@@ -294,7 +294,7 @@ void main() {
                                        CL_ME_SEARCH_PATH_RADIUS_16_12_INTEL // Search window radius
   };
   cl_accelerator_intel accelerator =
-    pfn_clCreateAcceleratorINTEL(context,
+    clCreateAcceleratorINTEL(context,
       CL_ACCELERATOR_TYPE_MOTION_ESTIMATION_INTEL,
       sizeof(cl_motion_estimation_desc_intel), &desc, 0);
 
@@ -386,7 +386,7 @@ void main() {
 
 
   //покурить освобождение акселератора
-  //clReleaseAcceleratorINTEL(accelerator);
+  clReleaseAcceleratorINTEL(accelerator);
   clReleaseMemObject(srcImage);
   clReleaseMemObject(refImage);
   clReleaseMemObject(outMVBuffer);

@@ -16,13 +16,14 @@ __kernel void mov_reanimation(__read_only  image2d_t src_image, __read_only  ima
   uint ygr = get_group_id(1);
 
   short2 er = motion_vector_buffer[ygr*widthinMB + xgr];
-  const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_LINEAR;
+  const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;
   float4 pixel;
 
   int xout = xgr*MotBlo + xol;
   int yout = ygr*MotBlo + yol;
 
-  pixel = read_imagef(src_image, sampler, (int2)(xout, yout));
-  write_imagef(out_image, (int2)(xout+er.x, yout+er.y), pixel);
+  pixel = read_imagef(src_image, sampler, (int2)(xout - er.x, yout - er.y));
+  write_imagef(out_image, (int2)(xout, yout), pixel);
   ///могли ли тут подраться к чортовой матери?
+  ///нет, похоже, что не сильно дерется
 }
