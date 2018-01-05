@@ -162,8 +162,8 @@ void main() {
   fclose(ptrFile);
 
   ////piches
-  char *filename0 = "exp/chat0.jpg";
-  char *filename1 = "exp/chat1.jpg";
+  char *filename0 = "exp/002184.jpg";
+  char *filename1 = "exp/002185.jpg";
   u8 *pSrcBuf = NULL;
   u8 *pRefBuf = NULL;
   float fquant[64], iquant[64];
