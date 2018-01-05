@@ -339,16 +339,16 @@ void main() {
   err = clEnqueueNDRangeKernel(command, kernel, 2, originROI, sizeROI, NULL, 0, 0, 0);
   printf("Kernel Intel err = %i\n", err);
   // Read resulting motion vectors
-  //err = clEnqueueReadBuffer(command, outMVBuffer, CL_TRUE, 0, widthInMB * heightInMB * sizeof(cl_short2), pMVOut, 0, 0, 0);
-  //printf("Read buff err = %i\n", err);
-  //
-  //for (int y = 0; y < heightInMB; y++)
-  //{
-  //  for (int z = 0; z < widthInMB; z+=2)
-  //  {
-  //    printf("_%i,%i_  ", pMVOut[y*widthInMB + z], pMVOut[y*widthInMB + z + 1]);
-  //  }
-  //}
+  err = clEnqueueReadBuffer(command, outMVBuffer, CL_TRUE, 0, widthInMB * heightInMB * sizeof(cl_short2), pMVOut, 0, 0, 0);
+  printf("Read buff err = %i\n", err);
+  
+  for (int y = 0; y < heightInMB; y++)
+  {
+    for (int z = 0; z < widthInMB; z+=2)
+    {
+      printf("_%i,%i_  ", pMVOut[y*widthInMB + z], pMVOut[y*widthInMB + z + 1]);
+    }
+  }
 
   err = clSetKernelArg(kern_mr, 0, sizeof(cl_mem), &srcImage);
   printf("Anne Reanimation Kern 0 = %i\n", err);

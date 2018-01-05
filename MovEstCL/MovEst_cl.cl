@@ -1,7 +1,6 @@
-﻿
-__kernel void mov_estimation()
+﻿__kernel void mov_estimation(__read_only  image2d_t src_image, __read_only  image2d_t ref_image, __global short2 * motion_vector_buffer, int widthinMB)
 { 
-
+    
 }
 //__read_only  image2d_t src_image
 //__read_only  image2d_t ref_image 
@@ -22,7 +21,7 @@ __kernel void mov_reanimation(__read_only  image2d_t src_image, __read_only  ima
   int xout = xgr*MotBlo + xol;
   int yout = ygr*MotBlo + yol;
 
-  pixel = read_imagef(src_image, sampler, (int2)(xout - er.x, yout - er.y));
+  pixel = read_imagef(src_image, sampler, (int2)(xout - er.x/4, yout - er.y/4));
   write_imagef(out_image, (int2)(xout, yout), pixel);
   ///могли ли тут подраться к чортовой матери?
   ///нет, похоже, что не сильно дерется
