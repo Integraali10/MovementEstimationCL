@@ -1,18 +1,9 @@
-﻿  MovEst_hc.cpp
-MovEst_hc.cpp(28,89): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-MovEst_hc.cpp(35,87): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-MovEst_hc.cpp(385,37): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
-MovEst_hc.cpp(255,1): warning C4996: 'clCreateCommandQueue': was declared deprecated
-  C:\Intel\OpenCL\sdk\include\CL\cl.h(1428): note: see declaration of 'clCreateCommandQueue'
-MovEst_hc.cpp(304,1): warning C4996: 'clCreateImage2D': was declared deprecated
-  C:\Intel\OpenCL\sdk\include\CL\cl.h(1387): note: see declaration of 'clCreateImage2D'
-MovEst_hc.cpp(307,1): warning C4996: 'clCreateImage2D': was declared deprecated
-  C:\Intel\OpenCL\sdk\include\CL\cl.h(1387): note: see declaration of 'clCreateImage2D'
-MovEst_hc.cpp(318,1): warning C4996: 'clCreateImage2D': was declared deprecated
-  C:\Intel\OpenCL\sdk\include\CL\cl.h(1387): note: see declaration of 'clCreateImage2D'
+﻿  MovEst_additional_hc.cpp
+  MovEst_main_hc.cpp
+MovEst_main_hc.cpp(210): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
   Generating code
-  5 of 255 functions ( 2.0%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    3 functions had inline decision re-evaluated but remain unchanged
+  4 of 187 functions ( 2.1%) were compiled, the rest were copied from previous compilation.
+    2 functions were new in current compilation
+    9 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   MovEstCL.vcxproj -> C:\Users\Savva\Source\Repos\MovementEstimationCL\x64\Release\MovEstCL.exe

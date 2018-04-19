@@ -3,7 +3,8 @@ import glob, os
 
 
 
-for infile in glob.glob("exp/*.bmp"):
+for infile in glob.glob("exp/0021*.bmp"):
     file, ext = os.path.splitext(infile)
     im = Image.open(infile)
-    im.save(file + ".jpg", "JPEG")
+    #im = im.convert('L')
+    im.save(file + ".png")
